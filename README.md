@@ -2,6 +2,8 @@
 
 A simple web chat for talking web admin
 
+The server was written in Rust. Client-side code is written in plain HTML and JS.
+
 ## Prerequisite
 
 * Rust and Cargo
