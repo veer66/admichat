@@ -123,8 +123,8 @@ fn build_host_chat_future(f: ServerFuture, handle: &Handle, tx:
                             let cap = ROOM_MSG_RE.captures(&t[..]).unwrap();
                             tx.borrow_mut().unbounded_send(
                                 ChatMessage::ToAll(
-                                    OwnedMessage::Text(cap[1].to_string()),
-                                    cap[0].to_string()))
+                                    OwnedMessage::Text(cap[2].to_string()),
+                                    cap[1].to_string()))
                         },
    
                         _ => Ok(())
@@ -173,7 +173,9 @@ fn run_server() -> Result<(), Box<Error>> {
     let server = Server::bind("0.0.0.0:10000", &handle)?;
     let (tx, rx) = unbounded();
     let tx = Rc::new(RefCell::new(tx));
-    let f = server.incoming()
+    println!("Listening ...");
+    let f = server
+        .incoming()
         .map_err(|InvalidConnection { error, .. }| error)
         .for_each(|(upgrade, _addr)| {
             if !upgrade.protocols().iter().any(|s| s == "rust-websocket") {
