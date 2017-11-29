@@ -4,7 +4,6 @@
         <meta http-equiv="content-type" content="text/html; charset=utf-8">
     </head>
     <body>
-        <p>@@@</p>
         <form>
             <p>Room: <span id="room"></span></p>
             <p>
@@ -17,36 +16,33 @@
         </form>
         <script>
          let room = genRoom()
-         let sock = new WebSocket("ws://localhost:10000/chat-guest/" + room, "rust-websocket");//, "protocolOne");
+         let sock = new WebSocket("ws://localhost:10000/chat-guest/" + room, "rust-websocket");
          let input_message_com = document.querySelector("input#input_message");
 
 
          function genRoom() {
              let array = new Uint8Array(16)
              window.crypto.getRandomValues(array)
-             return btoa(String.fromCharCode.apply(null, array)).replace(/\//g, '%%')
+             return btoa(String.fromCharCode.apply(null, array)).replace(/\//g, '%%').replace(/\+/g, 'P')
+             
          }
 
-         function removeAllChildren(node) {
-             node.childNodes.forEach(function(child) {
-                 console.log(child)
-             })
-         }
+         /* function removeAllChildren(node) {
+          *     node.childNodes.forEach(function(child) {
 
+          *     })
+          * }
+          */
          let room_node = document.querySelector("span#room")
          let messages_box = document.querySelector("textarea#messages")
-         removeAllChildren(room_node)
+         //removeAllChildren(room_node)
          room_node.appendChild(document.createTextNode(room))
 
          function sendMessage() {
              if (sock.readyState == 1 /* OPEN */ &&
                  !input_message_com.value.match(/^\s*$/)) {
-
                  let msg = input_message_com.value
-                 //sock.send(room)
-                 //sock.send("guest")
-                 sock.send(msg)
-                 console.log("SEND !!!")
+                 sock.send("GUEST: " + msg)
                  input_message_com.value = ""
              }
              return false
@@ -54,16 +50,12 @@
 
 
          sock.onopen = function (event) {
-             sock.send(room)
-             sock.send("KAKA")
+             sock.send("INIT-TOKEN")
          };
 
          sock.onmessage = function (event) {
              let msg = event.data
-             //event.data.split(/:/).slice(1,3).join(":")
-             console.log(msg)
-             messages_box.value = ("===>" + msg + "<===\n")
-             //             console.log("@@@" + event.data);
+             messages_box.value += msg + "\n";
          }
 
         </script>
