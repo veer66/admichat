@@ -1,0 +1,20 @@
+[package]
+name = "admichat"
+version = "0.1.0"
+authors = ["Vee Satayamas <vsatayamas@gmail.com>"]
+description = "A simple web chat for talking web admin"
+documentation = "https://github.com/veer66/admichat/blob/master/README.md"
+homepage = "https://github.com/veer66/admichat"
+repository = "https://github.com.com/veer66/admichat.git"
+readme = "README.md"
+keywords = ["chat", "web-chat", "websocket"]
+license = "UNLICENSE"
+
+[dependencies]
+websocket = "0.20.2"
+tokio-core = "0.1"
+futures = "0.1.17"
+ex-futures = "0.4.4"
+hyper = "^0.10.6"
+regex = "0.2.2"
+lazy_static = "0.2.11"

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    </head>
+    <body>
+        <p>@@@</p>
+        <form>
+            <p>Room: <span id="room"></span></p>
+            <p>
+                <textarea id="messages" rows="10" cols="30"></textarea>
+            </p>
+            <p>
+                <input type="text" id="input_message" value="" length="10">
+                <button onclick="return sendMessage()">Submit</button>
+            </p>
+        </form>
+        <script>
+         let room = genRoom()
+         let sock = new WebSocket("ws://localhost:10000/chat-guest/" + room, "rust-websocket");//, "protocolOne");
+         let input_message_com = document.querySelector("input#input_message");
+
+
+         function genRoom() {
+             let array = new Uint8Array(16)
+             window.crypto.getRandomValues(array)
+             return btoa(String.fromCharCode.apply(null, array)).replace(/\//g, '%%')
+         }
+
+         function removeAllChildren(node) {
+             node.childNodes.forEach(function(child) {
+                 console.log(child)
+             })
+         }
+
+         let room_node = document.querySelector("span#room")
+         let messages_box = document.querySelector("textarea#messages")
+         removeAllChildren(room_node)
+         room_node.appendChild(document.createTextNode(room))
+
+         function sendMessage() {
+             if (sock.readyState == 1 /* OPEN */ &&
+                 !input_message_com.value.match(/^\s*$/)) {
+
+                 let msg = input_message_com.value
+                 //sock.send(room)
+                 //sock.send("guest")
+                 sock.send(msg)
+                 console.log("SEND !!!")
+                 input_message_com.value = ""
+             }
+             return false
+         }
+
+
+         sock.onopen = function (event) {
+             sock.send(room)
+             sock.send("KAKA")
+         };
+
+         sock.onmessage = function (event) {
+             let msg = event.data
+             //event.data.split(/:/).slice(1,3).join(":")
+             console.log(msg)
+             messages_box.value = ("===>" + msg + "<===\n")
+             //             console.log("@@@" + event.data);
+         }
+
+        </script>
+    </body>
+</html>
