@@ -1,6 +1,8 @@
 # admichat
 
-A simple web chat for talking web admin
+A simple web chat for talking between the web admin and a guest/customer/client
+
+The server was written in Rust. Client-side code is written in plain HTML and JS.
 
 ## Prerequisite
 
