@@ -10,6 +10,7 @@ readme = "README.md"
 keywords = ["chat", "web-chat", "websocket"]
 license = "UNLICENSE"
 
+
 [dependencies]
 websocket = "0.20.2"
 tokio-core = "0.1"
@@ -18,3 +19,4 @@ ex-futures = "0.4.4"
 hyper = "^0.10.6"
 regex = "0.2.2"
 lazy_static = "0.2.11"
+reqwest = {version = "0.8.1", features = ["unstable"]}

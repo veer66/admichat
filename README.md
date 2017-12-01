@@ -23,6 +23,21 @@ In another window:
 cargo run
 ````
 
+### message processing server
+
+For example:
+````ruby
+require 'sinatra'
+
+post '/mod_msg' do
+  request.body.rewind
+  puts request.body.read
+  "!!!"
+end
+````
+
+Run it at localhost:4567
+
 ## URL
 
 * http://localhost:10001/chat-guest.html, for client/guest/customer
