@@ -27,6 +27,7 @@ use reqwest::unstable::async::{Client, Decoder};
 use std::mem;
 use std::io::{Read, Cursor};
 use std::collections::HashMap;
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -39,12 +40,12 @@ lazy_static! {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
     pub ws_addr: String,
-    pub mod_addr: String
+    pub mod_addr: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
-    pub server: ServerConfig
+    pub server: ServerConfig,
 }
 
 pub fn load_config() -> Settings {
@@ -67,7 +68,10 @@ type Sender = UnboundedSender<Content>;
 type Receiver = UnboundedReceiver<Content>;
 
 struct ChatServer {
-    core: Core,
+    handle: Handle,
+    tx: Rc<RefCell<Sender>>,
+    rx: Receiver,
+    mod_addr: String,
 }
 
 impl ChatServer {
@@ -88,15 +92,17 @@ impl ChatServer {
     }
 
     fn remote_mod_msg(msg: OwnedMessage,
-                      handle: &Handle)
+                      handle: &Handle,
+                      mod_addr: &str)
                       -> Box<Future<Item = OwnedMessage, Error = websocket::WebSocketError>> {
         let client = Client::new(handle);
         match &msg {
             &OwnedMessage::Text(ref orig) => {
                 let orig = orig.clone();
                 let mut params = HashMap::new();
+                let url = &format!("http://{}/mod_msg", mod_addr)[..];
                 params.insert("orig", orig.clone());
-                Box::new(client.post("http://localhost:4567/mod_msg")
+                Box::new(client.post(url)
                     .json(&params)
                     .send()
                     .map_err(|_| websocket::WebSocketError::NoDataAvailable)
@@ -191,21 +197,21 @@ impl ChatServer {
         }
     }
 
-    fn build_guest_chat_future(f: ServerFuture,
-                               handle: &Handle,
-                               tx: Rc<RefCell<Sender>>,
-                               rx: Receiver,
-                               room: &str) {
+    fn build_guest_chat_future(&self, f: ServerFuture, room: &str) {
         let room_for_write = room.to_string();
         let room_for_read = room.to_string();
+        let tx = self.tx.clone();
+        let rx = self.rx.clone();
+        let handle = self.handle.clone();
         let handle_inner = handle.clone();
+        let mod_addr = self.mod_addr.clone();
 
         let f = f.and_then(|(s, _)| s.send(Message::text("INIT").into()))
             .and_then(move |s| {
                 let (sink, stream) = s.split();
                 let write_fut = stream.take_while(|msg| Ok(!msg.is_close()))
                     .filter_map(Self::guest_tx_msg)
-                    .and_then(move |msg| Self::remote_mod_msg(msg, &handle_inner))
+                    .and_then(move |msg| Self::remote_mod_msg(msg, &handle_inner, &mod_addr[..]))
                     .fold(tx,
                           move |tx, msg| Self::guest_msg_to_tx(msg, tx, &room_for_write));
                 let read_fut = rx.map_err(|_| websocket::WebSocketError::NoDataAvailable)
@@ -217,11 +223,10 @@ impl ChatServer {
         handle.spawn(f);
     }
 
-    fn build_host_chat_future(f: ServerFuture,
-                              handle: &Handle,
-                              tx: Rc<RefCell<Sender>>,
-                              rx: Receiver) {
-
+    fn build_host_chat_future(&self, f: ServerFuture) {
+        let tx = self.tx.clone();
+        let rx = self.rx.clone();
+        let handle = self.handle.clone();
         let f = f.and_then(|(s, _)| s.send(Message::text("INIT").into()))
             .and_then(move |s| {
                 let (sink, stream) = s.split();
@@ -240,14 +245,22 @@ impl ChatServer {
     }
 
 
-    fn run_server(&mut self, conf: Settings) -> Result<(), Box<Error>> {
+    fn run_server(conf: Settings) -> Result<(), Box<Error>> {
         let ws_addr = conf.server.ws_addr.clone();
-        let core = &mut self.core;
-        let handle = &core.handle();
-        let server = Server::bind(ws_addr, handle)?;
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let server = Server::bind(ws_addr.clone(), &handle)?;
+
         let (tx, rx) = unbounded();
         let tx = Rc::new(RefCell::new(tx));
-        println!("Listening ...");
+
+        let chat_server = ChatServer {
+            handle: core.handle(),
+            tx: tx,
+            rx: rx,
+            mod_addr: conf.server.mod_addr.clone(),
+        };
+
         let f = server.incoming()
             .map_err(|InvalidConnection { error, .. }| error)
             .for_each(|(upgrade, _addr)| {
@@ -258,20 +271,19 @@ impl ChatServer {
                     return Ok(());
                 }
                 let path = upgrade.request.subject.1.clone();
-                println!("PATH = #{:?}", path);
                 let f = upgrade.use_protocol("rust-websocket")
                     .accept();
                 if let RequestUri::AbsolutePath(ref p) = path {
                     if CHAT_GUEST_PATH_RE.is_match(&p[..]) {
                         let room = p.split('/').nth(2).unwrap().to_string();
-                        println!("ROOM = #{}", &room);
-                        Self::build_guest_chat_future(f, handle, tx.clone(), rx.clone(), &room[..]);
+                        chat_server.build_guest_chat_future(f, &room[..]);
                     } else if CHAT_HOST_PATH_RE.is_match(&p[..]) {
-                        Self::build_host_chat_future(f, handle, tx.clone(), rx.clone());
+                        chat_server.build_host_chat_future(f);
                     }
                 }
                 Ok(())
             });
+        println!("Listening {} ...", &ws_addr);
         core.run(f)?;
         Ok(())
     }
@@ -280,9 +292,7 @@ impl ChatServer {
 
 fn main() {
     let conf = load_config();
-    let core = Core::new().unwrap();
-    let mut server = ChatServer { core: core };
-    server.run_server(conf).unwrap_or_else(|e| {
+    ChatServer::run_server(conf).unwrap_or_else(|e| {
         panic!("E = {:?}", e);
     })
 }
