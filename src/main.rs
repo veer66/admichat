@@ -1,4 +1,4 @@
-
+extern crate config;
 extern crate websocket;
 extern crate futures;
 extern crate ex_futures;
@@ -27,10 +27,32 @@ use reqwest::unstable::async::{Client, Decoder};
 use std::mem;
 use std::io::{Read, Cursor};
 use std::collections::HashMap;
+#[macro_use]
+extern crate serde_derive;
+
 lazy_static! {
     static ref CHAT_GUEST_PATH_RE: Regex = Regex::new("^/chat-guest/\\w+").unwrap();
     static ref CHAT_HOST_PATH_RE:  Regex = Regex::new("^/chat-host").unwrap();
     static ref ROOM_MSG_RE: Regex = Regex::new("([^:]+):(.+)").unwrap();
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ServerConfig {
+    pub ws_addr: String,
+    pub mod_addr: String
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Settings {
+    pub server: ServerConfig
+}
+
+pub fn load_config() -> Settings {
+    config::Config::new()
+        .merge(config::File::with_name("config"))
+        .expect("Cannot find config")
+        .deserialize::<Settings>()
+        .expect("Cannot deserialize config")
 }
 
 enum ChatMessage {
@@ -218,10 +240,11 @@ impl ChatServer {
     }
 
 
-    fn run_server(&mut self) -> Result<(), Box<Error>> {
+    fn run_server(&mut self, conf: Settings) -> Result<(), Box<Error>> {
+        let ws_addr = conf.server.ws_addr.clone();
         let core = &mut self.core;
         let handle = &core.handle();
-        let server = Server::bind("0.0.0.0:10000", handle)?;
+        let server = Server::bind(ws_addr, handle)?;
         let (tx, rx) = unbounded();
         let tx = Rc::new(RefCell::new(tx));
         println!("Listening ...");
@@ -256,9 +279,10 @@ impl ChatServer {
 
 
 fn main() {
+    let conf = load_config();
     let core = Core::new().unwrap();
     let mut server = ChatServer { core: core };
-    server.run_server().unwrap_or_else(|e| {
+    server.run_server(conf).unwrap_or_else(|e| {
         panic!("E = {:?}", e);
     })
 }
