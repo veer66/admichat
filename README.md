@@ -27,18 +27,10 @@ cargo run
 
 ### message processing server
 
-For example:
-````ruby
-require 'sinatra'
-
-post '/mod_msg' do
-  request.body.rewind
-  puts request.body.read
-  "!!!"
-end
+In mod-msg:
 ````
-
-Run it at localhost:4567
+cargo run
+````
 
 ## URL
 
